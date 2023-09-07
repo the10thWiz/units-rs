@@ -5,7 +5,7 @@ use std::{
 };
 use typenum::{op, Integer, ToInt};
 
-use crate::{alt::Unitless, Unit, Value, UnitValue};
+use crate::{base::Unitless, Unit, Value, UnitValue};
 
 #[derive(Clone, Copy)]
 pub struct Prefix<Power, U>(pub(crate) U, pub(crate) PhantomData<Power>);
@@ -108,7 +108,7 @@ pub type Yocto<U> = Prefix<typenum::consts::P24, U>;
 
 #[cfg(test)]
 mod tests {
-    use crate::alt::Meter;
+    use crate::base::Meter;
 
     use super::*;
 

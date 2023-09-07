@@ -1,9 +1,10 @@
-pub mod alt;
+#![cfg_attr(nightly, feature(trait_specialization))]
+pub mod base;
 pub mod prefix;
 
 use std::{fmt::Debug, marker::PhantomData, ops::Div};
 
-use alt::Unitless;
+use base::Unitless;
 use prefix::Prefix;
 use private::Sealed;
 use typenum::{Integer, ToInt};
@@ -56,21 +57,22 @@ impl<V: UnitValue, P: Integer + ToInt<i32>, U: Unit> Value<V, P, U> {
 }
 
 // TODO: this conflicts with the blanket `From<Self> for Self` impl in std
-// impl<
-//         V: UnitValue,
-//         P: Integer + ToInt<i32>,
-//         U: Unit,
-//         TargetP: Integer + ToInt<i32>,
-//         TargetU: Unit,
-//     > Into<Value<V, TargetP, TargetU>> for Value<V, P, U>
-// where
-//     U: Div<TargetU, Output = Unitless>,
-// {
-//     fn into(self) -> Value<V, TargetP, TargetU> {
-//         let tmp = Prefix(TargetU::create(), PhantomData);
-//         Value(self.1.convert(self.0, &tmp), tmp)
-//     }
-// }
+#[cfg(nightly)]
+impl<
+        V: UnitValue,
+        P: Integer + ToInt<i32>,
+        U: Unit,
+        TargetP: Integer + ToInt<i32>,
+        TargetU: Unit,
+    > From<Value<V, P, U>> for Value<V, TargetP, TargetU>
+where
+    U: Div<TargetU, Output = Unitless>,
+{
+    fn from(value: Value<V, P, U>) -> Value<V, TargetP, TargetU> {
+        let tmp = Prefix(TargetU::create(), PhantomData);
+        Value(value.1.convert(self.0, &tmp), tmp)
+    }
+}
 
 impl<
         LhsV: UnitValue,
@@ -93,6 +95,21 @@ impl<V: Debug, P: Integer + ToInt<i32>, U: Unit + Debug> Debug for Value<V, P, U
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} {:?}", self.0, self.1)
     }
+}
+
+#[test]
+fn test_from() {
+    use crate::{base::Meter, prefix::Centi};
+    // assert_eq!(
+    //     Centi::<Meter>::new(100f64),
+    //     Meter::new(1f64).convert()
+    // );
+    assert_eq!(
+        Centi::<Meter>::new(100f64),
+        Meter::new(1).into()
+        // Note that the order here matters for rust to select the correct generic type
+        // automatically
+    );
 }
 
 // // #[derive(Debug, Clone, Copy)]
@@ -494,58 +511,4 @@ unit_types!(
 //
 //     pub type SqMeter = Area<Meter>;
 //     pub type SqKiloMeter = Area<Kilo<Meter>>;
-// }
-//
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use super::common::*;
-//     #[test]
-//     fn it_works() {
-//         assert_eq!(
-//             Value::<Meter>::new(1).convert::<CentiMeter>(),
-//             Value::<CentiMeter>::new(100)
-//         );
-//         assert_eq!(
-//             Value::<CentiMeter>::new(100),
-//             Value::<Meter>::new(1).into() // Note that the order here matters for rust to select
-//                                           // the correct generic type
-//         );
-//         assert_eq!(
-//             Value::<KiloMeter>::new(1).convert::<Meter>(),
-//             Value::<Meter>::new(1000)
-//         );
-//         // Verify that the soft matching also works
-//         assert_eq!(Value::<KiloMeter>::new(1), Value::<Meter>::new(1000));
-//         assert_eq!(
-//             Value::<Meter>::new(1) * Value::<Meter>::new(1),
-//             Value::<Area<Meter>>::new(1)
-//         );
-//     }
-//
-//     #[test]
-//     fn it_works_with_less_superfish() {
-//         assert_eq!(
-//             Meter::new(1).convert() as Value<CentiMeter>,
-//             CentiMeter::new(100)
-//         );
-//         assert_eq!(
-//             KiloMeter::new(1).convert() as Value<Meter>,
-//             Meter::new(1000)
-//         );
-//         // Verify that the soft matching also works
-//         assert_eq!(KiloMeter::new(1), Meter::new(1000));
-//         assert_eq!(Meter::new(1) * Meter::new(1), SqMeter::new(1));
-//     }
-//
-//     #[test]
-//     fn kelvin_celsius() {
-//         assert_eq!(Kelvin::new(214).convert::<Celsius>(), Celsius::new(1));
-//     }
-//
-//     #[test]
-//     fn area_as_length_times_length() {
-//         let side_length = Meter::new(3);
-//         assert_eq!(side_length * side_length, SqMeter::new(3 * 3));
-//     }
 // }

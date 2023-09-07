@@ -243,12 +243,6 @@ mod tests {
         let d = Second;
         let c = (a * b) / d;
         assert_has_type!(c => Second);
-        // println!("{}", std::any::type_name_of_val(&c));
+        assert_has_type!(Unitless / Second => Inverse<Second>);
     }
 }
-
-// Hard here, because we need to be able to track multiplication and elimitate duplicates
-
-// impl<N, D> CombinedUnit<N, D> {
-//
-// }
