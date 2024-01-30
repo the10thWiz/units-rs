@@ -115,12 +115,39 @@ base_unit!(Kelvin: Tempature);
 base_unit!(Mole: Amount);
 base_unit!(Candela: LuminousIntesity);
 
+pub trait Invert: Unit {
+    type Inverse: Unit;
+    fn invert(self) -> Self::Inverse;
+}
+
 // represents 1/U
+#[derive(Clone, Copy)]
 pub struct Inverse<U: BaseUnit>(U);
+impl<U: BaseUnit> Unit for Inverse<U> {
+    type Base = U;
+
+    fn create() -> Self {
+        Self(U::create())
+    }
+}
 
 impl<U: BaseUnit + Debug> Debug for Inverse<U> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "1/{:?}", self.0)
+    }
+}
+
+impl<U: BaseUnit> Invert for Inverse<U> {
+    type Inverse = U;
+    fn invert(self) -> Self::Inverse {
+        self.0
+    }
+}
+
+impl<U: BaseUnit> Invert for U {
+    type Inverse = Inverse<U>;
+    fn invert(self) -> Self::Inverse {
+        Inverse(self)
     }
 }
 
@@ -137,6 +164,7 @@ where
 
 #[derive(Clone, Copy)]
 pub struct Mult<U, V>(U, V);
+
 impl<U: Unit, V: Unit> Unit for Mult<U, V> {
     type Base = Mult<U::Base, V::Base>;
     fn create() -> Self {
@@ -147,6 +175,14 @@ impl<U: Unit, V: Unit> Unit for Mult<U, V> {
 impl<U: Debug, V: Debug> Debug for Mult<U, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} * {:?}", self.0, self.1)
+    }
+}
+
+impl<U: Unit + Invert, V: Unit + Invert> Invert for Mult<U, V> {
+    type Inverse = Mult<U::Inverse, V::Inverse>;
+
+    fn invert(self) -> Self::Inverse {
+        Mult(self.0.invert(), self.1.invert())
     }
 }
 

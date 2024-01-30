@@ -2,12 +2,12 @@
 pub mod base;
 pub mod prefix;
 
-use std::{fmt::Debug, marker::PhantomData, ops::Div};
+use std::{fmt::Debug, marker::PhantomData, ops::{Div, Add, Sub, Mul}};
 
 use base::Unitless;
 use prefix::Prefix;
 use private::Sealed;
-use typenum::{Integer, ToInt};
+use typenum::{Integer, ToInt, op};
 
 mod private {
     pub trait Sealed {}
@@ -44,6 +44,7 @@ impl UnitValue for f64 {
     }
 }
 
+// TODO: create and use a different `From/Into` trait
 impl<V: UnitValue, P: Integer + ToInt<i32>, U: Unit> Value<V, P, U> {
     pub fn convert<TargetP: Integer + ToInt<i32>, TargetU: Unit>(
         &self,
@@ -57,22 +58,23 @@ impl<V: UnitValue, P: Integer + ToInt<i32>, U: Unit> Value<V, P, U> {
 }
 
 // TODO: this conflicts with the blanket `From<Self> for Self` impl in std
-#[cfg(nightly)]
-impl<
-        V: UnitValue,
-        P: Integer + ToInt<i32>,
-        U: Unit,
-        TargetP: Integer + ToInt<i32>,
-        TargetU: Unit,
-    > From<Value<V, P, U>> for Value<V, TargetP, TargetU>
-where
-    U: Div<TargetU, Output = Unitless>,
-{
-    fn from(value: Value<V, P, U>) -> Value<V, TargetP, TargetU> {
-        let tmp = Prefix(TargetU::create(), PhantomData);
-        Value(value.1.convert(self.0, &tmp), tmp)
-    }
-}
+// trait_specialization makes this work, since the std one is more specific
+// #[cfg(nightly)]
+// impl<
+//         V: UnitValue,
+//         P: Integer + ToInt<i32>,
+//         U: Unit,
+//         TargetP: Integer + ToInt<i32>,
+//         TargetU: Unit,
+//     > From<Value<V, P, U>> for Value<V, TargetP, TargetU>
+// where
+//     U: Div<TargetU, Output = Unitless>,
+// {
+//     fn from(value: Value<V, P, U>) -> Value<V, TargetP, TargetU> {
+//         let tmp = Prefix(TargetU::create(), PhantomData);
+//         Value(value.1.convert(self.0, &tmp), tmp)
+//     }
+// }
 
 impl<
         LhsV: UnitValue,
@@ -91,22 +93,144 @@ where
     }
 }
 
+impl<
+        LhsV: UnitValue,
+        LhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+    > Eq for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Eq,
+    LhsU: Div<LhsU, Output = Unitless>,
+{}
+
+impl<
+        LhsV: UnitValue,
+        RhsV,
+        LhsP: Integer + ToInt<i32>,
+        RhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+        RhsU: Unit,
+    > PartialOrd<Value<RhsV, RhsP, RhsU>> for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: PartialOrd<RhsV>,
+    LhsU: Div<RhsU, Output = Unitless>,
+{
+    fn partial_cmp(&self, other: &Value<RhsV, RhsP, RhsU>) -> Option<std::cmp::Ordering> {
+        self.convert::<RhsP, RhsU>().value().partial_cmp(other.value())
+    }
+}
+
+impl<
+        LhsV: UnitValue,
+        LhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+    > Ord for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Ord,
+    LhsU: Div<LhsU, Output = Unitless>,
+{
+    fn cmp(&self, other: &Value<LhsV, LhsP, LhsU>) -> std::cmp::Ordering {
+        self.convert::<LhsP, LhsU>().value().cmp(other.value())
+    }
+}
+
+impl<
+        LhsV: UnitValue,
+        RhsV,
+        LhsP: Integer + ToInt<i32>,
+        RhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+        RhsU: Unit,
+    > Add<Value<RhsV, RhsP, RhsU>> for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Add<RhsV>,
+    LhsU: Div<RhsU, Output = Unitless>,
+{
+    type Output = Value<op!(LhsV + RhsV), RhsP, RhsU>;
+    fn add(self, other: Value<RhsV, RhsP, RhsU>) -> Self::Output {
+        Value(self.convert::<RhsP, RhsU>().value().add(other.0), other.1)
+    }
+}
+
+impl<
+        LhsV: UnitValue,
+        RhsV,
+        LhsP: Integer + ToInt<i32>,
+        RhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+        RhsU: Unit,
+    > Sub<Value<RhsV, RhsP, RhsU>> for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Sub<RhsV>,
+    LhsU: Div<RhsU, Output = Unitless>,
+{
+    type Output = Value<op!(LhsV - RhsV), RhsP, RhsU>;
+    fn sub(self, other: Value<RhsV, RhsP, RhsU>) -> Self::Output {
+        Value(self.convert::<RhsP, RhsU>().value().sub(other.0), other.1)
+    }
+}
+
+impl<
+        LhsV: UnitValue,
+        RhsV,
+        LhsP: Integer + ToInt<i32>,
+        RhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+        RhsU: Unit,
+    > Mul<Value<RhsV, RhsP, RhsU>> for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Mul<RhsV>,
+    LhsU: Mul<RhsU>,
+    LhsP: Add<RhsP>,
+    <LhsP as Add<RhsP>>::Output: Integer,
+    op!(LhsU * RhsU): Unit,
+{
+    type Output = Value<op!(LhsV * RhsV), op!(LhsP + RhsP), op!(LhsU * RhsU)>;
+    fn mul(self, other: Value<RhsV, RhsP, RhsU>) -> Self::Output {
+        Value(self.value().mul(other.0), self.1 * other.1)
+    }
+}
+
+impl<
+        LhsV: UnitValue,
+        RhsV,
+        LhsP: Integer + ToInt<i32>,
+        RhsP: Integer + ToInt<i32>,
+        LhsU: Unit,
+        RhsU: Unit,
+    > Div<Value<RhsV, RhsP, RhsU>> for Value<LhsV, LhsP, LhsU>
+where
+    LhsV: Div<RhsV>,
+    LhsU: Div<RhsU>,
+    LhsP: Sub<RhsP>,
+    <LhsP as Sub<RhsP>>::Output: Integer,
+    op!(LhsU / RhsU): Unit,
+{
+    type Output = Value<op!(LhsV / RhsV), op!(LhsP - RhsP), op!(LhsU / RhsU)>;
+    fn div(self, other: Value<RhsV, RhsP, RhsU>) -> Self::Output {
+        Value(self.value().div(other.0), self.1 / other.1)
+    }
+}
+
 impl<V: Debug, P: Integer + ToInt<i32>, U: Unit + Debug> Debug for Value<V, P, U> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} {:?}", self.0, self.1)
     }
 }
 
+#[cfg(nightly)]
 #[test]
 fn test_from() {
     use crate::{base::Meter, prefix::Centi};
+    use typenum::P2;
     // assert_eq!(
     //     Centi::<Meter>::new(100f64),
     //     Meter::new(1f64).convert()
     // );
+    let tmp: Value<f64, P2, Meter> = Meter::new(1).into();
     assert_eq!(
         Centi::<Meter>::new(100f64),
-        Meter::new(1).into()
+        tmp
         // Note that the order here matters for rust to select the correct generic type
         // automatically
     );

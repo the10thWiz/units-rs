@@ -31,6 +31,17 @@ where
     }
 }
 
+impl<UP: Integer, VP: Integer, U: Unit, V: Unit> Mul<Prefix<VP, V>> for Prefix<UP, U>
+where
+    U: Mul<V>,
+    UP: Add<VP>,
+{
+    type Output = Prefix<op!(UP + VP), op!(U * V)>;
+    fn mul(self, rhs: Prefix<VP, V>) -> Self::Output {
+        Prefix(self.0 * rhs.0, PhantomData)
+    }
+}
+
 impl<Power: ToInt<i32>, U> Prefix<Power, U> {
     pub fn power(&self) -> i32 {
         Power::to_int()
